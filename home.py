@@ -1,0 +1,2 @@
+def home():
+  print('home')
