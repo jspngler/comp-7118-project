@@ -39,7 +39,8 @@ Run 'pipenv install' installs the packages required for python. And running 'pip
 ## Running
 After running 'pipenv shell', the interface can be set up with...
 
-python sampleCSV.py --input=filename.csv --number=nSamples --seed=seedNumber
+> python sampleCSV.py --input=filename.csv --number=nSamples --seed=seedNumber
+
 where:
 - --input specifies the csv file to sample.
 - --number specifies the number of samples to make.
