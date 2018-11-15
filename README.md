@@ -2,29 +2,33 @@
 Project for COMP 7118
 
 ## Description
-Movie rating system with users. Has a web, movie, and user component that allows one to rate and add movies. An administrator component allows movies to be added and complete statistics displayed. A user can rank movies, recieve recomendations, and pick genres and titles. Initialization uses datasets in the same format as movieLens: a movies.csv file and a ratings.csv file. The headers are as follows:
+Movie rating system with users. Has a web, movie, and user component that allows one to rate and add movies. An administrator component allows movies to be added and complete statistics displayed. A user can rank movies, recieve recomendations, and pick genres and titles. Initialization uses datasets in the same format as movieLens: a movies.csv file and a ratings.csv file. 
 
-### Movie List
+### 1. Input/Backend
+The headers are as follows:
+
+#### Movie List
 Contains 3 columns:
 - Movie IDs: Identifies the movie.
 - Movie Titles: Title of that movie.
 - Movie Genres:Genres associated with that movie, in pipe, "|", seperated list.
 
-
-### User Ratings
+#### User Ratings
 Contains 3 columns:
 - User IDs: Identifies the user.
 - Movie ID: Identifies the movie that is rated by identified user.
 - User Ratings: Rating given by the identified user.
 
-### Output
-This lets us create:
+### 2. Output/Stats
+The ratings are aggregated via sklearn to predict 'likeness' among movies rated and movies watch by users.This lets us perform statistics on the following:
 #### User recommendations
+Based on similar choices among users.
 #### Popular
+What is the most popular overall, in a genre, or most watched.
 #### Similar Movies
+Movies with similar genres.
 
-
-### Web interface
+### 3. Web interface/Frontend
 Utilizes Flask from python. Has two modes:
 
 #### User
