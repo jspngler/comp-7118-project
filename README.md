@@ -5,6 +5,7 @@ Project for COMP 7118
 Movie rating system with users. Has a web, movie, and user component that allows one to rate and add movies. An administrator component allows movies to be added and complete statistics displayed. A user can rank movies, recieve recomendations, and pick genres and titles. Initialization uses datasets in the same format as movieLens: a movies.csv file and a ratings.csv file. 
 
 ### 1. Input/Backend
+From the groupLens site, the movieLens data set is [ml-20m.zip](http://files.grouplens.org/datasets/movielens/ml-20m.zip).
 The headers are as follows:
 #### Movie List
 Contains 3 columns:
