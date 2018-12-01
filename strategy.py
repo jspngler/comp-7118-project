@@ -56,14 +56,14 @@ def parse_ratings():
                 if not int(row[0]) in ratings_by_user_id:
                     ratings_by_user_id[int(row[0])] = []
                 ratings_by_user_id[int(row[0])].append({
-                    "user_id": int(row[1]),
+                    "movie_id": int(row[1]),
                     "rating": float(row[2]),
                     "timestamp": int(row[3])
                 })
                 if not int(row[1]) in ratings_by_movie_id:
                     ratings_by_movie_id[int(row[1])] = []
                 ratings_by_movie_id[int(row[1])].append({
-                    "movie_id": int(row[0]),
+                    "user_id": int(row[0]),
                     "rating": float(row[2]),
                     "timestamp": int(row[3])
                 })
@@ -94,7 +94,6 @@ def find_weight(user_id1, user_id2):
     set_of_movies_rated_by_both_users = {}  # {movie_id: [user1_rating, user2_rating]}
     for movie_rating1 in ratings_for_user1:
         for movie_rating2 in ratings_for_user2:
-            print(movie_rating2)
             if movie_rating1["movie_id"] == movie_rating2["movie_id"]:
                 set_of_movies_rated_by_both_users[movie_rating1["movie_id"]] = []
                 set_of_movies_rated_by_both_users[movie_rating1["movie_id"]].append(movie_rating1)
@@ -150,7 +149,7 @@ def make_prediction(prediction_user, movie_id):
 
     """ get the top weights """
     top_weights = []
-    k = len(weights) / 4  # we'll make "k" = 25% of the total number of users
+    k = round(len(weights) / 4)  # we'll make "k" = 25% of the total number of users
     for i in range(k):
         max_user_id = max(weights, key=int)
         top_weights.append({
@@ -170,6 +169,8 @@ def make_prediction(prediction_user, movie_id):
     prediction = avg_rating_for_prediction_user + (numerator / denominator)
     if prediction < 0:
         prediction = 0
+    if prediction > 5:
+        prediction = prediction / 2
     return prediction
 
 
