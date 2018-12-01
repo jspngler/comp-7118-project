@@ -8,6 +8,7 @@ import getopt
 class ratings():
     #------------------------------------------------------------------
     # Initialize our ratings. self.movies and self.ratings.
+    # asdfasdfasdf 
     #------------------------------------------------------------------
     def __init__(self, initialMovies, initialRatings):
         # These structures will probably be merged into a pandas 
