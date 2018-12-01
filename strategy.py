@@ -2,14 +2,15 @@
 
 import math
 import argparse
+import csv
 
 # going to use a dict, with movie_id as the key, for movies because movie_id has a 1-to-1 relation with movie
-movies = {}  # {movie_id: {year, title}}
+movies = {}  # {movie_id: {genre, title}}
 # a movie_id can have multiple ratings. going to use a dict of lists
 ratings_by_movie_id = {}  # {movie_id: [{user_id, rating}]}
 # a user_id can have multiple ratings. going to use a dict of lists
 ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
-
+movies_by_genre = {} # {genre: [movie_id]}
 
 def parse_file(filename, isMovie):
     """
@@ -45,6 +46,46 @@ def parse_file(filename, isMovie):
                         "rating": float(data[2])
                     })
 
+def parse_ratings():
+    with open('movielens/ratings.csv') as csv_file:
+        csv_r = csv.reader(csv_file, delimiter=",")
+        line_count = 0
+        for row in csv_r:
+            line_count += 1
+            if line_count > 1:
+                if not int(row[0]) in ratings_by_user_id:
+                    ratings_by_user_id[int(row[0])] = []
+                ratings_by_user_id[int(row[0])].append({
+                    "user_id": int(row[1]),
+                    "rating": float(row[2]),
+                    "timestamp": int(row[3])
+                })
+                if not int(row[1]) in ratings_by_movie_id:
+                    ratings_by_movie_id[int(row[1])] = []
+                ratings_by_movie_id[int(row[1])].append({
+                    "movie_id": int(row[0]),
+                    "rating": float(row[2]),
+                    "timestamp": int(row[3])
+                })
+
+
+def parse_movies():
+    with open('movielens/movies.csv') as csv_file:
+        csv_r = csv.reader(csv_file, delimiter=",")
+        line_count = 0
+        for row in csv_r:
+            line_count += 1
+            if line_count > 1:
+                if row[2]:
+                    genres = row[2].split("|")
+                    for genre in genres:
+                        if genre.lower() not in movies_by_genre:
+                            movies_by_genre[genre.lower()] = []
+                        movies_by_genre[genre.lower()].append(int(row[0]))
+                movies[int(row[0])] = {
+                    "title": row[1],
+                    "genres": genres
+                }
 
 def find_weight(user_id1, user_id2):
     ratings_for_user1 = ratings_by_user_id[user_id1]  # [{movie_id, rating}]
@@ -53,6 +94,7 @@ def find_weight(user_id1, user_id2):
     set_of_movies_rated_by_both_users = {}  # {movie_id: [user1_rating, user2_rating]}
     for movie_rating1 in ratings_for_user1:
         for movie_rating2 in ratings_for_user2:
+            print(movie_rating2)
             if movie_rating1["movie_id"] == movie_rating2["movie_id"]:
                 set_of_movies_rated_by_both_users[movie_rating1["movie_id"]] = []
                 set_of_movies_rated_by_both_users[movie_rating1["movie_id"]].append(movie_rating1)
@@ -132,8 +174,10 @@ def make_prediction(prediction_user, movie_id):
 
 
 def main(user_id, movie_id):
-    parse_file("netflix/movie_titles.txt", True)
-    parse_file("netflix/ratings.txt", False)
+    # parse_file("netflix/movie_titles.txt", True)
+    # parse_file("netflix/ratings.txt", False)
+    parse_ratings()
+    parse_movies()
     print(make_prediction(user_id, movie_id))
 
 
