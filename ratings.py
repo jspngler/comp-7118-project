@@ -3,42 +3,24 @@ import sys
 import getopt
 
 #----------------------------------------------------------------
-# Class for user movie ratings. Yay!
+# Class for user movie ratings.
 #----------------------------------------------------------------
 class ratings():
     #------------------------------------------------------------------
     # Initialize our ratings. self.movies and self.ratings.
-    # asdfasdfasdf 
     #------------------------------------------------------------------
-    def __init__(self, initialMovies, initialRatings):
+    def __init__(self, initialMoviesFile, initialRatingsFile):
         # These structures will probably be merged into a pandas 
         # dataFrame 
-        ######################### This part doesn't work yet #################
-        print(initialMovies.columns)
-        try:
-            if all(['movieId', 'title', 'genres']) in initialMovies.columns:
-                self.movies=initialMovies
-                print("No movies in initialMovies.")
-                raise
-            else:
-                print("Wrong pandas dataframe header in initialMovies:")
-                raise KeyError
-        except:
-            print("initialMovies is the wrong type.")
-            raise
-        try:
-            if len(initialRatings.loc['userId'])>0 and len(initialRatings.loc['movieId'])>0 and len(initialRatings.loc['rating'])>0 and len(initialRatings.loc['timestamp'])>0:
-                self.ratings=initialRatings
-            else:
-                print("No ratings in initialRatings")
-                raise
-        except KeyError:
-            print("Wrong pandas dataframe header in initialRatings:")
-            print(initialRatings)
-            raise KeyError
-        except:
-            print("initialRatings is the wrong type.")
-            raise
+        # going to use a dict, with movie_id as the key, for movies because movie_id has a 1-to-1 relation with movie
+        self.movies = {}  # {movie_id: {genre, title}}
+        # a movie_id can have multiple ratings. going to use a dict of lists
+        self.ratings_by_movie_id = {}  # {movie_id: [{user_id, rating}]}
+        # a user_id can have multiple ratings. going to use a dict of lists
+        self.ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
+        self.movies_by_genre = {} # {genre: [movie_id]}
+        self.parse_movies(initialMoviesFile)
+        self.parse_ratings(initialMoviesFile)
     
     ################# Accumulation methods ############################
     #------------------------------------------------------------------
@@ -68,6 +50,52 @@ class ratings():
     #------------------------------------------------------------------
     def addUser(self, user):
         pass
+    
+    #------------------------------------------------------------------
+    # Parse the ratings file.
+    #------------------------------------------------------------------
+    def parse_ratings(self,ratingsFile):
+        with open(ratingsFile) as csv_file:
+            csv_r = csv.reader(csv_file, delimiter=",")
+            line_count = 0
+            for row in csv_r:
+                line_count += 1
+                if line_count > 1:
+                    if not int(row[0]) in ratings_by_user_id:
+                        ratings_by_user_id[int(row[0])] = []
+                    self.ratings_by_user_id[int(row[0])].append({
+                        "movie_id": int(row[1]),
+                        "rating": float(row[2]),
+                        "timestamp": int(row[3])
+                    })
+                    if not int(row[1]) in ratings_by_movie_id:
+                        self.ratings_by_movie_id[int(row[1])] = []
+                    self.ratings_by_movie_id[int(row[1])].append({
+                        "user_id": int(row[0]),
+                        "rating": float(row[2]),
+                        "timestamp": int(row[3])
+                    })
+    
+    #------------------------------------------------------------------
+    # Parse the movies file.
+    #------------------------------------------------------------------
+    def parse_movies(self,moviesFile):
+        with open(moviesFile) as csv_file:
+            csv_r = csv.reader(csv_file, delimiter=",")
+            line_count = 0
+            for row in csv_r:
+                line_count += 1
+                if line_count > 1:
+                    if row[2]:
+                        genres = row[2].split("|")
+                        for genre in genres:
+                            if genre.lower() not in movies_by_genre:
+                                self.movies_by_genre[genre.lower()] = []
+                            self.movies_by_genre[genre.lower()].append(int(row[0]))
+                    self.movies[int(row[0])] = {
+                        "title": row[1],
+                        "genres": genres
+                    }
     
     ############# End Accumulation methods ############################
     
@@ -116,23 +144,11 @@ class ratings():
     
     ############# End Find/recommend methods ##########################
     
-    ############## Maybe in a seperate ui class #######################
+    ############## For testing and fine tuning ########################
     #------------------------------------------------------------------
     # Display graph.
     #------------------------------------------------------------------
-    def displayGraph(stuff):
-        pass
-    
-    #------------------------------------------------------------------
-    # Display horizontal scrolling movies.
-    #------------------------------------------------------------------
-    def displayHorizontalMovies(movies):
-        pass
-    
-    #------------------------------------------------------------------
-    # Display verticle scrolling movies.
-    #------------------------------------------------------------------
-    def displayVerticalMovies(movies):
+    def displayGraph(self):
         pass
     
     ############## End of seperate class? #############################
