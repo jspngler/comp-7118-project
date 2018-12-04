@@ -17,6 +17,9 @@ Contains 3 columns:
 - User IDs: Identifies the user.
 - Movie ID: Identifies the movie that is rated by identified user.
 - User Ratings: Rating given by the identified user.
+#### Strategy.py
+Can be tested with:
+`strategy.py --user 1 --movie 3897 --movieFile movielens/movies.csv --ratingFile movielens/ratings.csv`
 
 ### 2. Output/Stats
 The ratings are aggregated via sklearn to predict 'likeness' among movies rated and movies watch by users.This lets us perform statistics on the following:
