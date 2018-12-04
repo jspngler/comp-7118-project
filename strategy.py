@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import math
 import argparse
@@ -46,8 +46,9 @@ def parse_file(filename, isMovie):
                         "rating": float(data[2])
                     })
 
-def parse_ratings():
-    with open('movielens/ratings.csv') as csv_file:
+#This works with both the reduced data set and the large data set
+def parse_ratings(ratingFile):
+    with open(ratingFile) as csv_file:
         csv_r = csv.reader(csv_file, delimiter=",")
         line_count = 0
         for row in csv_r:
@@ -67,10 +68,12 @@ def parse_ratings():
                     "rating": float(row[2]),
                     "timestamp": int(row[3])
                 })
+    #print(ratings_by_user_id)
+    #print(ratings_by_movie_id)
 
-
-def parse_movies():
-    with open('movielens/movies.csv') as csv_file:
+#This works with both the reduced data set and the large data set
+def parse_movies(moviesFile):
+    with open(moviesFile) as csv_file:
         csv_r = csv.reader(csv_file, delimiter=",")
         line_count = 0
         for row in csv_r:
@@ -86,6 +89,7 @@ def parse_movies():
                     "title": row[1],
                     "genres": genres
                 }
+    #print(movies)
 
 def find_weight(user_id1, user_id2):
     ratings_for_user1 = ratings_by_user_id[user_id1]  # [{movie_id, rating}]
@@ -166,19 +170,22 @@ def make_prediction(prediction_user, movie_id):
                 numerator += user_rating["rating"] * top_weight["weight"]
                 denominator += top_weight["weight"]
                 break
-    prediction = avg_rating_for_prediction_user + (numerator / denominator)
+    if denominator is not 0:
+        prediction = avg_rating_for_prediction_user + (numerator / denominator)
+    else:
+        prediction = 0
     if prediction < 0:
         prediction = 0
     if prediction > 5:
         prediction = prediction / 2
-    return prediction
+    return math.floor(prediction)
 
 
-def main(user_id, movie_id):
+def main(user_id, movie_id,movieFile,ratingFile):
     # parse_file("netflix/movie_titles.txt", True)
     # parse_file("netflix/ratings.txt", False)
-    parse_ratings()
-    parse_movies()
+    parse_ratings(ratingFile)
+    parse_movies(movieFile)
     print(make_prediction(user_id, movie_id))
 
 
@@ -186,5 +193,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--user", type=int, required=True)
     parser.add_argument("--movie", type=int, required=True)
+    parser.add_argument("--movieFile", type=str, required=True)
+    parser.add_argument("--ratingFile", type=str, required=True)
     args = parser.parse_args()
-    main(args.user, args.movie)
+    main(args.user, args.movie, args.movieFile, args.ratingFile)
