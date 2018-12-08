@@ -12,39 +12,6 @@ ratings_by_movie_id = {}  # {movie_id: [{user_id, rating}]}
 ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
 movies_by_genre = {} # {genre: [movie_id]}
 
-def parse_file(filename, isMovie):
-    """
-    Generic function to parse data line-by-line from a file
-    filename(String) = name of the file
-    isMovie(Boolean) = true - the file is movies; false - the file is ratings
-    """
-    with open(filename, 'r') as f:  # open the file read-only
-        for line in f:  # read the file line-by-line
-            if line and not line.isspace():  # if the line is not empty
-                line = line.rstrip()  # remove carriage returns and newlines
-                data = line.split(',',3)
-                if isMovie:  # if movies, save to movies
-                    if data[1] == "NULL":
-                        data[1] = None
-                    elif data[1]:
-                        data[1] = int(data[1])
-                    movies[int(data[0])] = {
-                        "year": data[1],
-                        "title": data[2]
-                    }
-                else:  # else, save to ratings
-                    if not int(data[0]) in ratings_by_movie_id:
-                        ratings_by_movie_id[int(data[0])] = []
-                    ratings_by_movie_id[int(data[0])].append({
-                        "user_id": int(data[1]),
-                        "rating": float(data[2])
-                    })
-                    if not int(data[1]) in ratings_by_user_id:
-                        ratings_by_user_id[int(data[1])] = []
-                    ratings_by_user_id[int(data[1])].append({
-                        "movie_id": int(data[0]),
-                        "rating": float(data[2])
-                    })
 
 #This works with both the reduced data set and the large data set
 def parse_ratings(ratingFile):
