@@ -8,6 +8,7 @@ import csv
 movies = {}  # {movie_id: {genre, title}}
 # a movie_id can have multiple ratings. going to use a dict of lists
 ratings_by_movie_id = {}  # {movie_id: [{user_id, rating}]}
+ratings_by_movie_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
 # a user_id can have multiple ratings. going to use a dict of lists
 ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
 movies_by_genre = {} # {genre: [movie_id]}
@@ -29,12 +30,15 @@ def parse_ratings(ratingFile):
                     "timestamp": int(row[3])
                 })
                 if not int(row[1]) in ratings_by_movie_id:
-                    ratings_by_movie_id[int(row[1])] = []
+                    ratings_by_movie_id[int(row[1])] = []                
                 ratings_by_movie_id[int(row[1])].append({
                     "user_id": int(row[0]),
                     "rating": float(row[2]),
                     "timestamp": int(row[3])
                 })
+                if not int(row[1]) in ratings_by_movie_id_for_sklearn:
+                    ratings_by_movie_id_for_sklearn[int(row[1])] = {}
+                ratings_by_movie_id_for_sklearn[int(row[1])][int(row[0])] = float(row[2])
     #print(ratings_by_user_id)
     #print(ratings_by_movie_id)
 
