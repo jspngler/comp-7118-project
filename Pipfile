@@ -8,6 +8,10 @@ name = "pypi"
 [packages]
 flask = "*"
 pandas = "*"
+dash = "*"
+dash-core-components = "*"
+dash-html-components = "*"
+imdbpy = "*"
 
 [requires]
 python_version = "3.7"
