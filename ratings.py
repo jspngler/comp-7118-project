@@ -1,6 +1,11 @@
 import pandas
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
+from scipy import sparse
+import numpy as np
 import sys
 import getopt
+import csv
 
 #----------------------------------------------------------------
 # Class for user movie ratings.
@@ -20,36 +25,37 @@ class ratings():
         self.ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
         self.movies_by_genre = {} # {genre: [movie_id]}
         self.parse_movies(initialMoviesFile)
-        self.parse_ratings(initialMoviesFile)
+        self.parse_ratings(initialRatingsFile)
+        self.user_id=0
+        self.login=False
+    
+    #------------------------------------------------------------------
+    # login a user. 
+    #------------------------------------------------------------------
+    def loginUser(self,user_id):
+        self.user_id=user_id
+        for rating in self.ratings_by_user_id:
+            if rating['user_id']==user_id:
+                self.login=True
+        return self.login
     
     ################# Accumulation methods ############################
     #------------------------------------------------------------------
     # Add a rating
     #------------------------------------------------------------------
-    def addRating(self, userId, movieId, rating, timestamp):
-        try:
-            self.ratings.append({'userId':userId,'movieId':movieId,'rating':rating,'timestamp':timestamp})
-        except:
-            print("Bad rating:")
-            print(userId,' ',movieId,' ',rating,' ',timestamp)
-            raise
+    def addRating(self, user_id, movie_id, rating, timestamp):
+        self.ratings_by_movie_id[movie_id].append({'user_id':user_id,'movie_id':movie_id,'rating':rating,'timestamp':timestamp})
+        self.ratings_by_user_id[user_id].append({'user_id':user_id,'movie_id':movie_id,'rating':rating,'timestamp':timestamp})
     
     #------------------------------------------------------------------
-    # Add a movie
+    # Add a user. 
     #------------------------------------------------------------------
-    def addMovie(self, movieId,title,genres):
-        try:
-            self.movies.append({'movieId':movieId,'title':title,'genres':genres})
-        except:
-            print("Bad movie:")
-            print(movieId,' ',title,' ',genres)
-            raise
-    
-    #------------------------------------------------------------------
-    # Add a user. Probably don't need this...
-    #------------------------------------------------------------------
-    def addUser(self, user):
-        pass
+    def addUser(self):
+        self.user_id=0
+        for rating in self.ratings_by_user_id:
+            if rating['user_id']>self.user_id:
+                self.user_id=rating['user_id']+1
+        return self.user_id
     
     #------------------------------------------------------------------
     # Parse the ratings file.
@@ -61,14 +67,14 @@ class ratings():
             for row in csv_r:
                 line_count += 1
                 if line_count > 1:
-                    if not int(row[0]) in ratings_by_user_id:
-                        ratings_by_user_id[int(row[0])] = []
+                    if not int(row[0]) in self.ratings_by_user_id:
+                        self.ratings_by_user_id[int(row[0])] = []
                     self.ratings_by_user_id[int(row[0])].append({
                         "movie_id": int(row[1]),
                         "rating": float(row[2]),
                         "timestamp": int(row[3])
                     })
-                    if not int(row[1]) in ratings_by_movie_id:
+                    if not int(row[1]) in self.ratings_by_movie_id:
                         self.ratings_by_movie_id[int(row[1])] = []
                     self.ratings_by_movie_id[int(row[1])].append({
                         "user_id": int(row[0]),
@@ -89,7 +95,7 @@ class ratings():
                     if row[2]:
                         genres = row[2].split("|")
                         for genre in genres:
-                            if genre.lower() not in movies_by_genre:
+                            if genre.lower() not in self.movies_by_genre:
                                 self.movies_by_genre[genre.lower()] = []
                             self.movies_by_genre[genre.lower()].append(int(row[0]))
                     self.movies[int(row[0])] = {
@@ -99,12 +105,54 @@ class ratings():
     
     ############# End Accumulation methods ############################
     
-    ############# Find/recommend methods ##############################
+    ############# Clustering methods ##################################
     #------------------------------------------------------------------
-    # Find similar movies for a user, based on a given movie. HARD
+    # Find similar movies for a user, based on a given movie. 
     #------------------------------------------------------------------
-    def similarMovie(self, user, movieId): 
-        pass
+    #from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
+    def similarMovie(self, movie_id, nMovies, T, N, I, method): 
+        v=DictVectorizer(sparse=True)
+        print(type(self.ratings_by_movie_id))
+        #print(self.ratings_by_movie_id)
+        r={}
+        #ratings={movieid:[userid:{rating}]}
+        for i in self.ratings_by_movie_id:
+            r[i]={}
+            for j in self.ratings_by_movie_id[i]:
+                r[i][j['user_id']]=j['rating']
+        print(r)
+        X=v.fit_transform(self.ratings_by_movie_id)
+        #print(self.ratings_by_user_id)
+        #print(self.ratings_by_movie_id)
+        #X=sparse.dok_matrix((len(self.ratings_by_user_id),len(self.ratings_by_movie_id)),dtype=np.int_)
+        #for i in self.ratings_by_user_id:
+        #    for j in i:
+        #        X[
+        print(X)
+        if method==KMeans:
+            clusterizer=method(n_clusters=N,tol=1,max_iter=20)
+        if method==Birch:
+            clusterizer=method(threshold=1,branching_factor=5,n_clusters=N)
+        if method==AgglomerativeClustering:
+            # affinity=
+            #    Metric used to compute the linkage. Can be “euclidean”, 
+            #“l1”, “l2”, “manhattan”, “cosine”, or ‘precomputed’. If linkage 
+            #is “ward”, only “euclidean” is accepted.
+            # linkage=
+            #    Which linkage criterion to use. The linkage criterion 
+            #determines which distance to use between sets of observation. 
+            #The algorithm will merge the pairs of cluster that minimize 
+            #this criterion.
+            #'ward' minimizes the variance of the clusters being merged.
+            #'average' uses the average of the distances of each observation of the two sets.
+            #'complete' or maximum linkage uses the maximum distances between all observations of the two sets.
+            #'single' uses the minimum of the distances between all observations of the two sets.
+            clusterizer=method(n_clusters=N,affinity='euclidean',linkage='ward')
+        clustering=clusterizer.fit(X)
+        sMovies=0
+        i=0
+        #for label in clustering._labels_:
+        #    if i==
     
     #------------------------------------------------------------------
     # Find similar movies by genres.
@@ -113,31 +161,32 @@ class ratings():
         pass
     
     #------------------------------------------------------------------
-    # Find a similar movies for a user, based on other users. HARD
+    # Find a similar movies for a user, based on other users. 
     #------------------------------------------------------------------
     def similarUser(self, user):
         pass
+        #sklearn.
   
     #------------------------------------------------------------------
-    # Most popular movies by both rating and frequency. EASY
+    # Most popular movies by both rating and frequency. 
     #------------------------------------------------------------------
     def popularMovies(self):
         pass
     
     #------------------------------------------------------------------
-    # Top Rated movies with highest rating. EASY
+    # Top Rated movies with highest rating. 
     #------------------------------------------------------------------
     def topRated(self):
         pass
     
     #------------------------------------------------------------------
-    # Most frequently number of times rated regardless of ratings. EASY
+    # Most frequently number of times rated regardless of ratings. 
     #------------------------------------------------------------------
     def frequentlyRatedRecently(self, timestamp):
         pass
     
     #------------------------------------------------------------------
-    # Most number of times rated. EASY
+    # Most number of times rated. 
     #------------------------------------------------------------------
     def frequentlyRated(self):
         pass
@@ -190,11 +239,13 @@ def main():
     if len(movieFilename)==0 or len(ratingFilename)==0:
         ratings.usage()
         sys.exit()
-    initialMovies=pandas.read_csv(movieFilename)
-    initialRatings=pandas.read_csv(ratingFilename)
-    rData=ratings(initialMovies,initialRatings)
-    rData.addRating(9783, 245, 3, time.clock())
-    rData.addMovie(9999999,'Sharknado 10','comedy|romance|parody|crap')
+    #initialMovies=pandas.read_csv(movieFilename)
+    #initialRatings=pandas.read_csv(ratingFilename)
+    rData=ratings(movieFilename,ratingFilename)
+    rData.similarMovie(1, 10, 10, 10, 20, KMeans) 
+    #def similarMovie(self, movie_id, nMovies, T, N, I, method): 
+    #rData.addRating(9783, 245, 3, time.clock())
+    #rData.addMovie(9999999,'Sharknado 10','comedy|romance|parody|crap')
 
 if __name__ == "__main__":
     main()
