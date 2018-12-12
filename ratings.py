@@ -26,13 +26,20 @@ class ratings():
         # a user_id can have multiple ratings. going to use a dict of lists
         self.ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
         self.movies_by_genre = {} # {genre: [movie_id]}
+        
         self.ratings_by_movie_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.ratings_by_user_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.ratings_by_timestamp_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.ratings_by_genre_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.genres= {}
+        self.average_rating_by_movie_id={}
+        self.rating_frequency_by_movie_id={}
+        self.rating_weights_by_user_id={}
+        
         self.parse_movies(initialMoviesFile)
         self.parse_ratings(initialRatingsFile)
+        self.genre_ratings()
+        self.average_ratings()
         self.user_id=0
         self.login=False
     
@@ -136,26 +143,74 @@ class ratings():
             genreI=genreI+1
     
     #------------------------------------------------------------------
+    # Get the weights by user id. Cosine similarity.
+    #------------------------------------------------------------------
+    def cosine_similarity(self):
+        
+    ############# End Accumulation methods ############################
+    
+    ############# Update Methods ######################################
+    #------------------------------------------------------------------
     # Get the genre ratings by movie..
     #------------------------------------------------------------------
-    def genre_ratings(self):
+    def genre_ratings_weights(self):
         for i in self.ratings_by_movie_id:
             for j in self.ratings_by_movie_id[i]:
                 
-            
-    ############# End Accumulation methods ############################
+    
+    
+    #------------------------------------------------------------------
+    # Get the average ratings by movie..
+    #------------------------------------------------------------------
+    def average_ratings(self):
+        self.average_rating_by_movie_id={}
+        for i in self.ratings_by_movie_id:
+            self.average_rating_by_movie_id[i]=0
+            for j in self.ratings_by_movie_id[i]:
+                self.average_rating_by_movie_id[i]=self.average_rating_by_movie_id[i]+j['rating']
+            self.average_rating_by_movie_id[i]=self.average_rating_by_movie_id[i]/len(self.ratings_by_movie_id[i])
+    
+    #------------------------------------------------------------------
+    # Get the rating frequency by movie, normalized by total number of 
+    # movies
+    #------------------------------------------------------------------
+    def rating_frequency(self):
+        self.rating_frequency_by_movie_id={}
+        for i in self.ratings_by_movie_id:
+            self.rating_frequency_by_movie_id[i]=len(self.ratings_by_movie_id[i])/len(self.ratings_by_user_id)
+    
+    #------------------------------------------------------------------
+    # Get the rating frequency by movie, normalized by total number of 
+    # movies
+    #------------------------------------------------------------------
+    def user_rating_weights(self):
+        self.rating_weights_by_user_id={}
+        for i in self.ratings_by_user_id:
+            self.rating_weights_by_user_id[i]=
+    #------------------------------------------------------------------
+    # Write the user file. 
+    #------------------------------------------------------------------
+    def write_user_file(self,header,prefix,data_to_write):
+        simMov=open(prefix+'_'+self.user_id+".txt","w")
+        simMov.write(header)
+        for i in topSorted:
+            for j in topSorted[i]:
+                simMov.write(str(i)+','+str(j[0])+','+str(j[1]))
+        simMov.close()
+    
+    ############# End Update Methods ##################################
     
     ############# Clustering methods ##################################
     #------------------------------------------------------------------
     # Find similar movies for a user, based on a given movie. 
+    # from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
     #------------------------------------------------------------------
-    #from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
-    def similarMovie(self, nMovies, T, nClusters, I, method): 
+    def get_clustering(self, input_data,  nClusters, iterations, method): 
         v=DictVectorizer(sparse=True)
-        R=[self.ratings_by_user_id[d]['rating'] for d in self.ratings_by_user_id]
+        R=[self.ratings_by_movie_id_for_sklearn[d] for d in self.ratings_by_movie_id_for_sklearn]
         X=v.fit_transform(R)
         if method==KMeans:
-            clusterizer=method(n_clusters=nClusters)
+            clusterizer=method(n_clusters=nClusters,max_iter=iterations,n_jobs=8)
         if method==Birch:
             clusterizer=method(n_clusters=nClusters)
         if method==AgglomerativeClustering:
@@ -173,12 +228,24 @@ class ratings():
             #'complete' or maximum linkage uses the maximum distances between all observations of the two sets.
             #'single' uses the minimum of the distances between all observations of the two sets.
             clusterizer=method(n_clusters=nClusters,affinity='euclidean',linkage='ward')
-        clustering=clusterizer.fit_predict(X)
-        simMov=open("similarMovies_user"+self.user_id+".txt","w")
-        topSorted=[]
-        for i,j in zip(self.movies,range(0,len(self.movies)):
-            topSorted={i,clustering[j]
-        
+        return clusterizer.fit_predict(X)
+    
+    #------------------------------------------------------------------
+    # Find a similar movies. 
+    #------------------------------------------------------------------
+    def similarMovie(self, nClusters, iterations, method):
+        clustering=self.get_clustering(self.ratings_by_movie_id_for_sklearn,nClusters,iterations,method)
+        # dictionary by cluster {[movie_id,cluster,average_rating]}
+        topSorted={}
+        for i in range(0,nClusters):
+            topSorted[i]=[]
+        for i,j in zip(self.ratings_by_movie_id,range(0,len(self.ratings_by_movie_id))):
+            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
+        for i in topSorted:
+            topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        header='cluster,movieId,rating'
+        prefix='similarMovie'
+        return topSorted,prefix,header
     
     #------------------------------------------------------------------
     # Find similar movies by genres.
@@ -189,35 +256,33 @@ class ratings():
     #------------------------------------------------------------------
     # Find a similar movies for a user, based on other users. 
     #------------------------------------------------------------------
-    def similarUser(self, user_id, nMovies, nclusters, method): 
-        v=DictVectorizer(sparse=True)
-        R=[self.ratings_by_user_id[d]['rating'] for d in self.ratings_by_user_id]
-        X=v.fit_transform(R)
-        if method==KMeans:
-            clusterizer=method(n_clusters=nClusters)
-        if method==Birch:
-            clusterizer=method(n_clusters=nClusters)
-        if method==AgglomerativeClustering:
-            # affinity=
-            #    Metric used to compute the linkage. Can be “euclidean”, 
-            #“l1”, “l2”, “manhattan”, “cosine”, or ‘precomputed’. If linkage 
-            #is “ward”, only “euclidean” is accepted.
-            # linkage=
-            #    Which linkage criterion to use. The linkage criterion 
-            #determines which distance to use between sets of observation. 
-            #The algorithm will merge the pairs of cluster that minimize 
-            #this criterion.
-            #'ward' minimizes the variance of the clusters being merged.
-            #'average' uses the average of the distances of each observation of the two sets.
-            #'complete' or maximum linkage uses the maximum distances between all observations of the two sets.
-            #'single' uses the minimum of the distances between all observations of the two sets.
-            clusterizer=method(n_clusters=nClusters,affinity='euclidean',linkage='ward')
-        clustering=clusterizer.fit_predict(X)
-  
+    def similarUser(self, nclusters, iterations, method): 
+        clustering=self.get_clustering(self.ratings_by_user_id_for_sklearn,nClusters,iterations,method)
+        topSorted={}
+        for i in range(0,nClusters):
+            topSorted[i]=[]
+        for i,j in zip(self.ratings_by_user_id,range(0,len(self.ratings_by_user_id))):
+            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
+        for i in topSorted:
+            topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        header='cluster,userId,rating'
+        prefix='similarUser'
+        return topSorted,prefix,header
+    
     #------------------------------------------------------------------
     # Most popular movies by both rating and frequency. 
     #------------------------------------------------------------------
     def popularMovies(self):
+        topSorted={}
+        for i in range(0,nClusters):
+            topSorted[i]=[]
+        for i,j in zip(self.ratings_by_user_id,range(0,len(self.ratings_by_user_id))):
+            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
+        for i in topSorted:
+            topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        header='cluster,userId,rating'
+        prefix='similarUser'
+        return topSorted,prefix,header
         pass
     
     #------------------------------------------------------------------
