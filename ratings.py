@@ -1,11 +1,13 @@
 import pandas
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
+from sklearn.datasets import make_blobs
 from scipy import sparse
 import numpy as np
 import sys
 import getopt
 import csv
+import matplotlib.pyplot as plt
 
 #----------------------------------------------------------------
 # Class for user movie ratings.
@@ -24,6 +26,11 @@ class ratings():
         # a user_id can have multiple ratings. going to use a dict of lists
         self.ratings_by_user_id = {}  # {user_id: [{movie_id, rating}]}
         self.movies_by_genre = {} # {genre: [movie_id]}
+        self.ratings_by_movie_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.ratings_by_user_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.ratings_by_timestamp_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.ratings_by_genre_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.genres= {}
         self.parse_movies(initialMoviesFile)
         self.parse_ratings(initialRatingsFile)
         self.user_id=0
@@ -46,6 +53,15 @@ class ratings():
     def addRating(self, user_id, movie_id, rating, timestamp):
         self.ratings_by_movie_id[movie_id].append({'user_id':user_id,'movie_id':movie_id,'rating':rating,'timestamp':timestamp})
         self.ratings_by_user_id[user_id].append({'user_id':user_id,'movie_id':movie_id,'rating':rating,'timestamp':timestamp})
+        if not int(movie_id) in self.ratings_by_movie_id_for_sklearn:
+            self.ratings_by_movie_id_for_sklearn[movie_id] = {}
+        self.ratings_by_movie_id_for_sklearn[movie_id][user_id] = float(rating)
+        if not user_id in self.ratings_by_user_id_for_sklearn:
+            self.ratings_by_user_id_for_sklearn[user_id] = {}
+        self.ratings_by_user_id_for_sklearn[user_id][movie_id] = float(rating)
+        if not timestamp in self.ratings_by_timestamp_for_sklearn:
+            self.ratings_by_timestamp_for_sklearn[timestamp] = {}
+        self.ratings_by_timestamp_for_sklearn[timestamp][movie_id] = float(rating)
     
     #------------------------------------------------------------------
     # Add a user. 
@@ -81,6 +97,15 @@ class ratings():
                         "rating": float(row[2]),
                         "timestamp": int(row[3])
                     })
+                    if not int(row[1]) in self.ratings_by_movie_id_for_sklearn:
+                        self.ratings_by_movie_id_for_sklearn[int(row[1])] = {}
+                    self.ratings_by_movie_id_for_sklearn[int(row[1])][int(row[0])] = float(row[2])
+                    if not int(row[0]) in self.ratings_by_user_id_for_sklearn:
+                        self.ratings_by_user_id_for_sklearn[int(row[0])] = {}
+                    self.ratings_by_user_id_for_sklearn[int(row[0])][int(row[1])] = float(row[2])
+                    if not int(row[3]) in self.ratings_by_timestamp_for_sklearn:
+                        self.ratings_by_timestamp_for_sklearn[int(row[3])] = {}
+                    self.ratings_by_timestamp_for_sklearn[int(row[3])][int(row[1])] = float(row[2])
     
     #------------------------------------------------------------------
     # Parse the movies file.
@@ -102,7 +127,22 @@ class ratings():
                         "title": row[1],
                         "genres": genres
                     }
+        for i in self.movies:
+            for j in self.movies[i]['genres']:
+                self.genres[j]=0
+        genreI=0
+        for i in self.genres:
+            self.genres[i]=genreI
+            genreI=genreI+1
     
+    #------------------------------------------------------------------
+    # Get the genre ratings by movie..
+    #------------------------------------------------------------------
+    def genre_ratings(self):
+        for i in self.ratings_by_movie_id:
+            for j in self.ratings_by_movie_id[i]:
+                
+            
     ############# End Accumulation methods ############################
     
     ############# Clustering methods ##################################
@@ -110,29 +150,14 @@ class ratings():
     # Find similar movies for a user, based on a given movie. 
     #------------------------------------------------------------------
     #from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
-    def similarMovie(self, movie_id, nMovies, T, N, I, method): 
+    def similarMovie(self, nMovies, T, nClusters, I, method): 
         v=DictVectorizer(sparse=True)
-        print(type(self.ratings_by_movie_id))
-        #print(self.ratings_by_movie_id)
-        r={}
-        #ratings={movieid:[userid:{rating}]}
-        for i in self.ratings_by_movie_id:
-            r[i]={}
-            for j in self.ratings_by_movie_id[i]:
-                r[i][j['user_id']]=j['rating']
-        print(r)
-        X=v.fit_transform(self.ratings_by_movie_id)
-        #print(self.ratings_by_user_id)
-        #print(self.ratings_by_movie_id)
-        #X=sparse.dok_matrix((len(self.ratings_by_user_id),len(self.ratings_by_movie_id)),dtype=np.int_)
-        #for i in self.ratings_by_user_id:
-        #    for j in i:
-        #        X[
-        print(X)
+        R=[self.ratings_by_user_id[d]['rating'] for d in self.ratings_by_user_id]
+        X=v.fit_transform(R)
         if method==KMeans:
-            clusterizer=method(n_clusters=N,tol=1,max_iter=20)
+            clusterizer=method(n_clusters=nClusters)
         if method==Birch:
-            clusterizer=method(threshold=1,branching_factor=5,n_clusters=N)
+            clusterizer=method(n_clusters=nClusters)
         if method==AgglomerativeClustering:
             # affinity=
             #    Metric used to compute the linkage. Can be “euclidean”, 
@@ -147,12 +172,13 @@ class ratings():
             #'average' uses the average of the distances of each observation of the two sets.
             #'complete' or maximum linkage uses the maximum distances between all observations of the two sets.
             #'single' uses the minimum of the distances between all observations of the two sets.
-            clusterizer=method(n_clusters=N,affinity='euclidean',linkage='ward')
-        clustering=clusterizer.fit(X)
-        sMovies=0
-        i=0
-        #for label in clustering._labels_:
-        #    if i==
+            clusterizer=method(n_clusters=nClusters,affinity='euclidean',linkage='ward')
+        clustering=clusterizer.fit_predict(X)
+        simMov=open("similarMovies_user"+self.user_id+".txt","w")
+        topSorted=[]
+        for i,j in zip(self.movies,range(0,len(self.movies)):
+            topSorted={i,clustering[j]
+        
     
     #------------------------------------------------------------------
     # Find similar movies by genres.
@@ -163,9 +189,30 @@ class ratings():
     #------------------------------------------------------------------
     # Find a similar movies for a user, based on other users. 
     #------------------------------------------------------------------
-    def similarUser(self, user):
-        pass
-        #sklearn.
+    def similarUser(self, user_id, nMovies, nclusters, method): 
+        v=DictVectorizer(sparse=True)
+        R=[self.ratings_by_user_id[d]['rating'] for d in self.ratings_by_user_id]
+        X=v.fit_transform(R)
+        if method==KMeans:
+            clusterizer=method(n_clusters=nClusters)
+        if method==Birch:
+            clusterizer=method(n_clusters=nClusters)
+        if method==AgglomerativeClustering:
+            # affinity=
+            #    Metric used to compute the linkage. Can be “euclidean”, 
+            #“l1”, “l2”, “manhattan”, “cosine”, or ‘precomputed’. If linkage 
+            #is “ward”, only “euclidean” is accepted.
+            # linkage=
+            #    Which linkage criterion to use. The linkage criterion 
+            #determines which distance to use between sets of observation. 
+            #The algorithm will merge the pairs of cluster that minimize 
+            #this criterion.
+            #'ward' minimizes the variance of the clusters being merged.
+            #'average' uses the average of the distances of each observation of the two sets.
+            #'complete' or maximum linkage uses the maximum distances between all observations of the two sets.
+            #'single' uses the minimum of the distances between all observations of the two sets.
+            clusterizer=method(n_clusters=nClusters,affinity='euclidean',linkage='ward')
+        clustering=clusterizer.fit_predict(X)
   
     #------------------------------------------------------------------
     # Most popular movies by both rating and frequency. 
@@ -242,8 +289,8 @@ def main():
     #initialMovies=pandas.read_csv(movieFilename)
     #initialRatings=pandas.read_csv(ratingFilename)
     rData=ratings(movieFilename,ratingFilename)
-    rData.similarMovie(1, 10, 10, 10, 20, KMeans) 
-    #def similarMovie(self, movie_id, nMovies, T, N, I, method): 
+    rData.similarMovie(1, 10, 10, 3, 20, KMeans) 
+    #def similarMovie(self, movie_id, nMovies, T, nClusters, I, method): 
     #rData.addRating(9783, 245, 3, time.clock())
     #rData.addMovie(9999999,'Sharknado 10','comedy|romance|parody|crap')
 
