@@ -30,11 +30,11 @@ class ratings():
         self.ratings_by_movie_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.ratings_by_user_id_for_sklearn = {}  # {movie_id: {user_id: rating}}
         self.ratings_by_timestamp_for_sklearn = {}  # {movie_id: {user_id: rating}}
-        self.ratings_by_genre_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.rating_weights_by_genre_for_sklearn = {}  # {movie_id: {user_id: rating}}
+        self.rating_weights_by_user_id_for_sklearn={}
         self.genres= {}
         self.average_rating_by_movie_id={}
         self.rating_frequency_by_movie_id={}
-        self.rating_weights_by_user_id={}
         
         self.parse_movies(initialMoviesFile)
         self.parse_ratings(initialRatingsFile)
@@ -142,14 +142,70 @@ class ratings():
             self.genres[i]=genreI
             genreI=genreI+1
     
+    ############# End Accumulation methods ############################
+    
+    ############# Filter methods ######################################
+    
+    def truncate_movies(self, movies, max_length=10)
+        for movie in self.ratings_by_user_id[self.user_id]:
+            for i in range(0,len(movies)):
+                if movie==movies[i][1]:
+                    del movies[i]
+                    break
+        return movies[:0,max_length]
+                   
+            
+    ############# End Filter Methods ##################################
+    
+    ############# Update Methods ######################################
     #------------------------------------------------------------------
     # Get the weights by user id. Cosine similarity.
     #------------------------------------------------------------------
-    def cosine_similarity(self):
+    def cosine_similarity(self, user_id1, user_id2):
+        ratings_for_user1 = self.ratings_by_user_id[user_id1]  # [{movie_id, rating}]
+        ratings_for_user2 = self.ratings_by_user_id[user_id2]
+        """ lets create the subset list first before calculating the weight """
+        set_of_movies_rated_by_both_users = {}  # {movie_id: [user1_rating, user2_rating]}
+        for movie_rating1 in ratings_for_user1:
+            for movie_rating2 in ratings_for_user2:
+                if movie_rating1["movie_id"] == movie_rating2["movie_id"]:
+                    set_of_movies_rated_by_both_users[movie_rating1["movie_id"]] = []
+                    set_of_movies_rated_by_both_users[movie_rating1["movie_id"]].append(movie_rating1)
+                    set_of_movies_rated_by_both_users[movie_rating1["movie_id"]].append(movie_rating2)
+                    break  # no need to keep looking if we have a match
         
-    ############# End Accumulation methods ############################
+        """ lets get the avg ratings of each user in the set """
+        avg_rating_for_user1 = 0
+        avg_rating_for_user2 = 0
+        for movie_id in set_of_movies_rated_by_both_users:
+            avg_rating_for_user1 += set_of_movies_rated_by_both_users[movie_id][0]['rating']
+            avg_rating_for_user2 += set_of_movies_rated_by_both_users[movie_id][1]['rating']
+        if len(set_of_movies_rated_by_both_users) <= 0:
+            # these users have no movies in common
+            return 0
+        avg_rating_for_user1 = avg_rating_for_user1 / len(set_of_movies_rated_by_both_users)
+        avg_rating_for_user2 = avg_rating_for_user2 / len(set_of_movies_rated_by_both_users)
+        
+        """ now lets calculate the weight """
+        # numerator
+        weight_numerator = 0
+        weight_denominator = 0
+        user1_weighted_denominator = 0
+        user2_weighted_denominator = 0
+        for movie_id in set_of_movies_rated_by_both_users:
+            ratings = set_of_movies_rated_by_both_users[movie_id]
+            weight_numerator += (ratings[0]["rating"] - avg_rating_for_user1) * (ratings[1]["rating"] - avg_rating_for_user2)
+            user1_weighted_denominator += math.pow((ratings[0]["rating"] - avg_rating_for_user1), 2)
+            user2_weighted_denominator += math.pow((ratings[1]["rating"] - avg_rating_for_user2), 2)
+        weight_denominator = math.sqrt(user1_weighted_denominator*user2_weighted_denominator)
+        if weight_denominator <= 0:
+            return 0
+        else:
+            weight = weight_numerator / weight_denominator
+            if weight < 0:
+                weight = 0
+            return weight
     
-    ############# Update Methods ######################################
     #------------------------------------------------------------------
     # Get the genre ratings by movie..
     #------------------------------------------------------------------
@@ -157,7 +213,7 @@ class ratings():
         for i in self.ratings_by_movie_id:
             for j in self.ratings_by_movie_id[i]:
                 
-    
+        
     
     #------------------------------------------------------------------
     # Get the average ratings by movie..
@@ -184,9 +240,10 @@ class ratings():
     # movies
     #------------------------------------------------------------------
     def user_rating_weights(self):
-        self.rating_weights_by_user_id={}
+        self.rating_weights_by_user_id_for_sklearn={}
         for i in self.ratings_by_user_id:
-            self.rating_weights_by_user_id[i]=
+            self.rating_weights_by_user_id_for_sklearn[i]=self.cosine_similarity(self.user_id,i)
+    
     #------------------------------------------------------------------
     # Write the user file. 
     #------------------------------------------------------------------
@@ -231,9 +288,9 @@ class ratings():
         return clusterizer.fit_predict(X)
     
     #------------------------------------------------------------------
-    # Find a similar movies. 
+    # Find similar movies. 
     #------------------------------------------------------------------
-    def similarMovie(self, nClusters, iterations, method):
+    def similarMovies(self, nClusters, nMovies, iterations, method):
         clustering=self.get_clustering(self.ratings_by_movie_id_for_sklearn,nClusters,iterations,method)
         # dictionary by cluster {[movie_id,cluster,average_rating]}
         topSorted={}
@@ -243,59 +300,80 @@ class ratings():
             topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
         for i in topSorted:
             topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        newSorted=[]
+        for i in range(0,nClusters):
+            for j in topSorted[i]:
+                newSorted.append((i,j[0],j[1]))
         header='cluster,movieId,rating'
-        prefix='similarMovie'
-        return topSorted,prefix,header
+        prefix='similarMovies'
+        return self.truncate_movies(newSorted,nMovies),prefix,header
     
     #------------------------------------------------------------------
-    # Find similar movies by genres.
+    # Find similar movies by genres. Doesn't work
     #------------------------------------------------------------------
-    def similarGenres(self,user,genres):
-        pass
+    def similarGenres(self,nClusters, nMovies, iterations, method):
+        clustering=self.get_clustering(self.ratings_by_movie_id_for_sklearn,nClusters,iterations,method)
+        # dictionary by cluster {[movie_id,cluster,average_rating]}
+        topSorted={}
+        for i in range(0,nClusters):
+            topSorted[i]=[]
+        for i,j in zip(self.ratings_by_movie_id,range(0,len(self.ratings_by_movie_id))):
+            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
+        for i in topSorted:
+            topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        newSorted=[]
+        for i in range(0,nClusters):
+            for j in topSorted[i]:
+                newSorted.append((i,j[0],j[1]))
+        header='cluster,movieId,rating'
+        prefix='similarMovies'
+        return self.truncate_movies(newSorted,nMovies),prefix,header
     
     #------------------------------------------------------------------
-    # Find a similar movies for a user, based on other users. 
+    # Find similar users.
+    # Form=avgRating+rating*sum(cosineSimilarity(user_id,j))
     #------------------------------------------------------------------
-    def similarUser(self, nclusters, iterations, method): 
+    def similarUsers(self, nClusters, nMovies, iterations, method): 
         clustering=self.get_clustering(self.ratings_by_user_id_for_sklearn,nClusters,iterations,method)
         topSorted={}
         for i in range(0,nClusters):
             topSorted[i]=[]
         for i,j in zip(self.ratings_by_user_id,range(0,len(self.ratings_by_user_id))):
-            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
+            topSorted[clustering[j]].append((i,self.rating_weights_by_user_for_sklearn[i]))
         for i in topSorted:
             topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
+        newSorted=[]
+        for i in range(0,nClusters):
+            for j in topSorted[i]:
+                newSorted.append((i,j[0],j[1]))
         header='cluster,userId,rating'
-        prefix='similarUser'
-        return topSorted,prefix,header
+        prefix='similarUsers'
+        return self.truncate_movies(newSorted),prefix,header
     
     #------------------------------------------------------------------
-    # Most popular movies by both rating and frequency. 
+    # Most popular movies weighted by both rating and frequency.
+    # Form=avgRating+nRating*5.0/totalNRatings
     #------------------------------------------------------------------
-    def popularMovies(self):
-        topSorted={}
-        for i in range(0,nClusters):
-            topSorted[i]=[]
-        for i,j in zip(self.ratings_by_user_id,range(0,len(self.ratings_by_user_id))):
-            topSorted[clustering[j]].append((i,self.average_rating_by_movie_id[i]))
-        for i in topSorted:
-            topSorted[i]=sorted(topSorted[i], key=lambda data: data[1],reverse=True)
-        header='cluster,userId,rating'
-        prefix='similarUser'
-        return topSorted,prefix,header
-        pass
+    def popularMovies(self,nClusters,nMovies,iterations,method):
+        newSorted=[]
+        for i in self.ratings_by_movie_id:
+            newSorted.append((0,i,self.average_rating_by_movie_id[i]+self.rating_frequency_by_movie_id[i]*5.0))
+        newSorted=sorted(newSorted, key=lambda data: data[1],reverse=True)
+        header='cluster,movieId,rating'
+        prefix='popularMovies'
+        return self.truncate_movies(topSorted,nMovies),prefix,header
     
     #------------------------------------------------------------------
     # Top Rated movies with highest rating. 
     #------------------------------------------------------------------
     def topRated(self):
-        pass
-    
-    #------------------------------------------------------------------
-    # Most frequently number of times rated regardless of ratings. 
-    #------------------------------------------------------------------
-    def frequentlyRatedRecently(self, timestamp):
-        pass
+        newSorted=[]
+        for i in self.ratings_by_movie_id:
+            newSorted.append((0,i,self.average_rating_by_movie_id[i]))
+        newSorted=sorted(newSorted, key=lambda data: data[1],reverse=True)
+        header='cluster,movieId,rating'
+        prefix='popularMovies'
+        return topSorted,prefix,header
     
     #------------------------------------------------------------------
     # Most number of times rated. 
