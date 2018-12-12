@@ -1,4 +1,4 @@
-import pandas
+#import pandas
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.cluster import KMeans,Birch,AgglomerativeClustering
 from sklearn.datasets import make_blobs
@@ -38,8 +38,9 @@ class ratings():
         
         self.parse_movies(initialMoviesFile)
         self.parse_ratings(initialRatingsFile)
-        self.genre_ratings()
+        #self.genre_ratings()
         self.average_ratings()
+        self.rating_frequency()
         self.user_id=0
         self.login=False
     
@@ -48,9 +49,8 @@ class ratings():
     #------------------------------------------------------------------
     def loginUser(self,user_id):
         self.user_id=user_id
-        for rating in self.ratings_by_user_id:
-            if rating['user_id']==user_id:
-                self.login=True
+        if user_id in self.ratings_by_user_id:
+            self.login=True
         return self.login
     
     ################# Accumulation methods ############################
@@ -146,13 +146,21 @@ class ratings():
     
     ############# Filter methods ######################################
     
-    def truncate_movies(self, movies, max_length=10)
+    def truncate_movies(self, movies, max_length=10):
         for movie in self.ratings_by_user_id[self.user_id]:
             for i in range(0,len(movies)):
-                if movie==movies[i][1]:
+                if movie['movie_id']==movies[i][1]:
                     del movies[i]
                     break
-        return movies[:0,max_length]
+        newList=[]
+        for i in range(0,len(movies)-1):
+            count=0
+            if movies[i][0]!=movies[i+1][0]:
+                count=0
+            if count<max_length:
+                count=count+1
+                newList.append(movies[i])
+        return newList
                    
             
     ############# End Filter Methods ##################################
@@ -209,11 +217,9 @@ class ratings():
     #------------------------------------------------------------------
     # Get the genre ratings by movie..
     #------------------------------------------------------------------
-    def genre_ratings_weights(self):
-        for i in self.ratings_by_movie_id:
-            for j in self.ratings_by_movie_id[i]:
-                
-        
+    #def genre_ratings_weights(self):
+    #    for i in self.ratings_by_movie_id:
+    #        for j in self.ratings_by_movie_id[i]:
     
     #------------------------------------------------------------------
     # Get the average ratings by movie..
@@ -432,10 +438,19 @@ def main():
     #initialMovies=pandas.read_csv(movieFilename)
     #initialRatings=pandas.read_csv(ratingFilename)
     rData=ratings(movieFilename,ratingFilename)
-    rData.similarMovie(1, 10, 10, 3, 20, KMeans) 
-    #def similarMovie(self, movie_id, nMovies, T, nClusters, I, method): 
-    #rData.addRating(9783, 245, 3, time.clock())
-    #rData.addMovie(9999999,'Sharknado 10','comedy|romance|parody|crap')
+    user_id=input("Please type your login: ")
+    rData.loginUser(int(user_id))
+    #print(rData.truncate_movies(rData.movies))
+    #clusterData=[(cluster,movie_d,ratings),...]
+    if algorithm==0:
+       clusterData,prefix,header=rData.similarMovies(40, 10, 5000, KMeans)
+    elif algorithm==1:
+       clusterData,prefix,header=rData.similarMovies(40, 10, 5000, BirchClustering)
+    elif algorithm==2:
+       clusterData,prefix,header=rData.similarMovies(40, 10, 5000, AgglomerativeClustering))
+
+
+
 
 if __name__ == "__main__":
     main()
