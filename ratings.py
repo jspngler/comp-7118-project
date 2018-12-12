@@ -447,7 +447,7 @@ def main():
     elif algorithm==1:
        clusterData,prefix,header=rData.similarMovies(40, 10, 5000, BirchClustering)
     elif algorithm==2:
-       clusterData,prefix,header=rData.similarMovies(40, 10, 5000, AgglomerativeClustering))
+       clusterData,prefix,header=rData.similarMovies(40, 10, 5000, AgglomerativeClustering)
 
 
 
